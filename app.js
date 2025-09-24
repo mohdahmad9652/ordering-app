@@ -312,10 +312,13 @@ class OrderManagementApp {
             imageUrls: document.getElementById('imageUrls').value
         };
         let currentOrder;
+        let userAction;
         if (this.currentEditId) {
             // Update existing order
             const orderIndex = this.orders.findIndex(o => o.id === this.currentEditId);
             this.orders[orderIndex] = { ...this.orders[orderIndex], ...orderData };
+            currentOrder = this.orders[orderIndex];
+            userAction='update'
         } else {
             // Add new order
             const newOrder = {
@@ -324,6 +327,7 @@ class OrderManagementApp {
             };
             this.orders.push(newOrder);
             currentOrder = newOrder;
+            userAction='create'
         }
 
         this.saveToLocalStorage();
@@ -334,7 +338,7 @@ class OrderManagementApp {
 
         // Sync with Google Sheets if connected
         if (this.connectionStatus === 'connected') {
-            this.syncSingleOrderToGoogleSheets(currentOrder);
+            this.syncSingleOrderToGoogleSheets(currentOrder,userAction);
         }
     }
 
@@ -347,6 +351,7 @@ class OrderManagementApp {
 
     deleteOrder(id) {
         if (confirm('Are you sure you want to delete this order?')) {
+            currentOrder = this.orders.find(o => o.id === id);
             this.orders = this.orders.filter(o => o.id !== id);
             this.saveToLocalStorage();
             this.updateDashboard();
@@ -355,7 +360,7 @@ class OrderManagementApp {
 
             // Sync with Google Sheets if connected
             if (this.connectionStatus === 'connected') {
-                this.syncToGoogleSheets('delete');
+                this.syncSingleOrderToGoogleSheets(currentOrder,'delete');
             }
         }
     }
@@ -766,14 +771,14 @@ class OrderManagementApp {
     }
 
     // Sync only the current order to Google Sheets
-    syncSingleOrderToGoogleSheets(orderData) {
+    syncSingleOrderToGoogleSheets(orderData,userAction='create') {
         if (this.connectionStatus !== 'connected') {
             return;
         }
 
         // Send only the single order data (not all orders array)
         this.makeJsonpRequest(this.appsScriptUrl, {
-            action: 'create',
+            action: userAction,
             orderNumber: orderData.orderNumber,
             partyName: orderData.partyName,
             orderDate: orderData.orderDate,
@@ -787,11 +792,11 @@ class OrderManagementApp {
             if (response && (response.success === true || response.status === 'success')) {
                 this.showMessage(`Order ${orderData.orderNumber} synced to Google Sheets!`, 'success');
             } else {
-                this.showMessage('Sync failed, but order saved locally', 'warning');
+                this.showMessage('Sync failed, but order '+userAction+'d locally', 'warning');
             }
         }).catch(error => {
             console.error('Sync failed:', error);
-            this.showMessage('Sync failed, but order saved locally', 'warning');
+            this.showMessage('Sync failed, but order '+userAction+'d locally', 'warning');
         });
     }
 
