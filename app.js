@@ -220,10 +220,10 @@ class OrderManagementApp {
                 <td>${order.contact || '-'}</td>
                 <td>
                     <div class="table-actions">
-                        <button class="btn btn--outline btn--sm" onclick="app.editOrder(${order.id})">
+                        <button class="btn btn--outline btn--sm" onclick="app.editOrder('${order.id}')">
                             Edit
                         </button>
-                        <button class="btn btn--outline btn--sm" onclick="app.deleteOrder(${order.id})" 
+                        <button class="btn btn--outline btn--sm" onclick="app.deleteOrder('${order.id}')" 
                                 style="color: var(--color-error)">
                             Delete
                         </button>
