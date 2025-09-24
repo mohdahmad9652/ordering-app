@@ -510,14 +510,14 @@ class OrderManagementApp {
         const csvContent = [
             headers.join(','),
             ...this.orders.map(order => [
-                this.escapeCsv(order.orderNumber),
-                this.escapeCsv(order.partyName),
-                order.orderDate,
-                this.escapeCsv(order.orderStatus),
-                order.expectedDelivery || '',
-                order.delivered,
-                this.escapeCsv(order.contact || ''),
-                this.escapeCsv(order.imageUrls || '')
+            this.escapeCsv(order.orderNumber),
+            this.escapeCsv(order.partyName),
+            Array.isArray(order.orderDate) ? order.orderDate[0] : order.orderDate,
+            this.escapeCsv(order.orderStatus),
+            Array.isArray(order.expectedDelivery) ? (order.expectedDelivery[0] || '') : (order.expectedDelivery || ''),
+            order.delivered,
+            this.escapeCsv(order.contact || ''),
+            this.escapeCsv(order.imageUrls || '')
             ].join(','))
         ].join('\n');
 
@@ -550,7 +550,7 @@ class OrderManagementApp {
         reader.readAsText(file);
     }
 
-    importFromCsv(csvText) {
+    async importFromCsv(csvText) {
         const lines = csvText.trim().split('\n');
         if (lines.length < 2) {
             throw new Error('CSV must have at least a header and one data row');
@@ -559,6 +559,8 @@ class OrderManagementApp {
         // Skip header row
         const dataLines = lines.slice(1);
         const importedOrders = [];
+        const duplicateOrders = [];
+        const existingOrderNumbers = new Set(this.orders.map(order => order.orderNumber));
 
         dataLines.forEach((line, index) => {
             try {
@@ -575,37 +577,182 @@ class OrderManagementApp {
                         contact: values[6] || '',
                         imageUrls: values[7] || ''
                     };
-                    importedOrders.push(order);
+
+                    // Check for duplicates
+                    if (existingOrderNumbers.has(order.orderNumber) || 
+                        importedOrders.some(existing => existing.orderNumber === order.orderNumber)) {
+                        duplicateOrders.push(order);
+                    } else {
+                        importedOrders.push(order);
+                    }
                 }
             } catch (error) {
                 console.warn(`Skipping invalid line ${index + 2}:`, line);
             }
         });
 
-        if (importedOrders.length === 0) {
+        if (importedOrders.length === 0 && duplicateOrders.length === 0) {
             throw new Error('No valid orders found in CSV');
         }
 
-        // Ask user if they want to replace or append
-        const replace = confirm(
-            `Found ${importedOrders.length} orders in CSV.\n\n` +
-            'Click OK to replace existing orders, or Cancel to append to existing orders.'
-        );
+        // Handle duplicates if found
+        let handleDuplicates = false;
+        if (duplicateOrders.length > 0) {
+            const duplicateNumbers = duplicateOrders.map(order => order.orderNumber).join(', ');
+            const userChoice = confirm(
+                `⚠️ DUPLICATE ORDER NUMBERS DETECTED ⚠️\n\n` +
+                `Found ${duplicateOrders.length} duplicate order numbers:\n` +
+                `${duplicateNumbers}\n\n` +
+                `These orders already exist in your system.\n\n` +
+                `📋 What would you like to do?\n\n` +
+                `✅ Click OK to UPDATE existing orders with new data\n` +
+                `❌ Click Cancel to SKIP duplicate orders and import only new ones\n\n` +
+                `Note: ${importedOrders.length} new orders will be imported regardless of your choice.`
+            );
 
-        if (replace) {
-            this.orders = importedOrders;
-        } else {
-            this.orders = [...this.orders, ...importedOrders];
+            if (userChoice) {
+                handleDuplicates = true;
+                // Add duplicates to import list for updating
+                importedOrders.push(...duplicateOrders);
+            }
         }
+
+        // Ask user about append vs replace for new orders
+        let replaceAll = false;
+        // if (importedOrders.length > 0 && !handleDuplicates) {
+        //     replaceAll = !confirm(
+        //         `📥 IMPORT ${importedOrders.length} ORDERS\n\n` +
+        //         `Ready to import ${importedOrders.length} new orders to your system.\n\n` +
+        //         `📋 How would you like to import them?\n\n` +
+        //         `✅ Click OK to ADD to existing orders (Recommended)\n` +
+        //         `❌ Click Cancel to REPLACE all existing orders\n\n` +
+        //         `${duplicateOrders.length > 0 ? `Note: ${duplicateOrders.length} duplicate orders were skipped.` : ''}`
+        //     );
+        // }
+
+        // Update local orders
+        // if (replaceAll) {
+        //     this.orders = importedOrders;
+        // } else {
+            // Add new orders or update existing ones
+            importedOrders.forEach(newOrder => {
+                const existingIndex = this.orders.findIndex(order => order.orderNumber === newOrder.orderNumber);
+                if (existingIndex !== -1) {
+                    // Update existing order
+                    this.orders[existingIndex] = { ...this.orders[existingIndex], ...newOrder };
+                } else {
+                    // Add new order
+                    this.orders.push(newOrder);
+                }
+            });
+        // }
 
         this.saveToLocalStorage();
         this.updateDashboard();
         this.renderOrders();
-        this.showMessage(`Successfully imported ${importedOrders.length} orders!`, 'success');
+
+        // Show success message
+        let message = `Successfully imported ${importedOrders.length} orders!`;
+        if (duplicateOrders.length > 0) {
+            if (handleDuplicates) {
+                message += ` Updated ${duplicateOrders.length} existing orders.`;
+            } else {
+                message += ` Skipped ${duplicateOrders.length} duplicate orders.`;
+            }
+        }
+        this.showMessage(message, 'success');
+
+        // Sync to Google Sheets if connected
+        if (this.connectionStatus === 'connected') {
+            await this.bulkSyncToGoogleSheets(importedOrders, duplicateOrders, handleDuplicates, replaceAll);
+        }
 
         // Reset file input
         document.getElementById('csvFileInput').value = '';
     }
+
+
+    // Sync imported CSV orders to Google Sheets
+    // Bulk sync imported orders to Google Sheets with single API call
+    async bulkSyncToGoogleSheets(newOrders, duplicateOrders, updateDuplicates, replaceAll) {
+        if (this.connectionStatus !== 'connected' || newOrders.length === 0) {
+            return;
+        }
+
+        try {
+            this.showMessage('Syncing orders to Google Sheets...', 'info');
+
+            // If replacing all, clear sheet first
+            if (replaceAll) {
+                await this.clearGoogleSheetData();
+            }
+
+            // Prepare data for bulk API call
+            const orderDataArray = newOrders.map(order => ({
+                orderNumber: order.orderNumber,
+                partyName: order.partyName,
+                orderDate: order.orderDate,
+                orderStatus: order.orderStatus,
+                expectedDelivery: order.expectedDelivery,
+                delivered: order.delivered,
+                contact: order.contact,
+                imageUrls: order.imageUrls,
+                isUpdate: updateDuplicates && duplicateOrders.some(dup => dup.orderNumber === order.orderNumber)
+            }));
+
+            // Make single bulk API call
+            const response = await this.makeJsonpRequest(this.appsScriptUrl, {
+                action: 'bulkImport',
+                data: JSON.stringify(orderDataArray),
+                updateDuplicates: updateDuplicates ? 'true' : 'false'
+            });
+
+            if (response && (response.success === true || response.status === 'success')) {
+                let syncMessage = `Successfully synced ${response.imported || newOrders.length} orders to Google Sheets!`;
+                if (response.updated && response.updated > 0) {
+                    syncMessage += ` Updated ${response.updated} existing orders.`;
+                }
+                if (response.skipped && response.skipped > 0) {
+                    syncMessage += ` Skipped ${response.skipped} duplicate orders.`;
+                }
+                this.showMessage(syncMessage, 'success');
+            } else {
+                throw new Error('Bulk sync failed');
+            }
+
+        } catch (error) {
+            console.error('Bulk sync failed:', error);
+            this.showMessage('Failed to sync some orders to Google Sheets', 'warning');
+        }
+    }
+
+
+    // // Clear all data from Google Sheets (except header)
+    // async clearGoogleSheetData() {
+    //     if (this.connectionStatus !== 'connected') {
+    //         return;
+    //     }
+
+    //     try {
+    //         this.showMessage('Clearing existing Google Sheets data...', 'info');
+            
+    //         const response = await this.makeJsonpRequest(this.appsScriptUrl, {
+    //             action: 'clear'
+    //         });
+            
+    //         if (response && (response.success === true || response.status === 'success')) {
+    //             console.log('Successfully cleared Google Sheets data');
+    //         } else {
+    //             throw new Error('Failed to clear Google Sheets data');
+    //         }
+            
+    //     } catch (error) {
+    //         console.error('Error clearing Google Sheets:', error);
+    //         throw error;
+    //     }
+    // }
+
+
 
     importFromPaste() {
         const textarea = document.getElementById('pasteDataTextarea');
