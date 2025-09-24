@@ -333,7 +333,7 @@ class OrderManagementApp {
 
         // Sync with Google Sheets if connected
         if (this.connectionStatus === 'connected') {
-            this.syncToGoogleSheets();
+            this.syncToGoogleSheets('create');
         }
     }
 
@@ -354,7 +354,7 @@ class OrderManagementApp {
 
             // Sync with Google Sheets if connected
             if (this.connectionStatus === 'connected') {
-                this.syncToGoogleSheets();
+                this.syncToGoogleSheets('delete');
             }
         }
     }
@@ -442,13 +442,13 @@ class OrderManagementApp {
         });
     }
 
-    syncToGoogleSheets() {
+    syncToGoogleSheets(userAction) {
         if (this.connectionStatus !== 'connected') {
             return;
         }
 
         this.makeJsonpRequest(this.appsScriptUrl, {
-            action: 'sync',
+            action: userAction,
             data: JSON.stringify(this.orders)
         }).then(response => {
             if (response && response.status === 'success') {
