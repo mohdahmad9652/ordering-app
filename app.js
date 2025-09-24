@@ -316,12 +316,6 @@ class OrderManagementApp {
             // Update existing order
             const orderIndex = this.orders.findIndex(o => o.id === this.currentEditId);
             this.orders[orderIndex] = { ...this.orders[orderIndex], ...orderData };
-            this.showMessage('Order updated successfully!', 'success');
-            
-            // Sync single order update to Google Sheets
-            if (this.connectionStatus === 'connected') {
-                this.syncSingleOrderToGoogleSheets('update', this.orders[orderIndex]);
-            }
         } else {
             // Add new order
             const newOrder = {
@@ -329,18 +323,18 @@ class OrderManagementApp {
                 ...orderData
             };
             this.orders.push(newOrder);
-            this.showMessage('Order added successfully!', 'success');
-            
-            // Sync new order to Google Sheets
-            if (this.connectionStatus === 'connected') {
-                this.syncSingleOrderToGoogleSheets('create', newOrder);
-            }
         }
 
         this.saveToLocalStorage();
         this.updateDashboard();
         this.renderOrders();
         this.hideOrderModal();
+        this.showMessage('Order saved successfully!', 'success');
+
+        // Sync with Google Sheets if connected
+        if (this.connectionStatus === 'connected') {
+            this.syncToGoogleSheets('create');
+        }
     }
 
     editOrder(id) {
@@ -352,21 +346,20 @@ class OrderManagementApp {
 
     deleteOrder(id) {
         if (confirm('Are you sure you want to delete this order?')) {
-            const order = this.orders.find(o => o.id === id);
             this.orders = this.orders.filter(o => o.id !== id);
             this.saveToLocalStorage();
             this.updateDashboard();
             this.renderOrders();
             this.showMessage('Order deleted successfully!', 'success');
 
-            // Sync deletion to Google Sheets
-            if (this.connectionStatus === 'connected' && order) {
-                this.syncSingleOrderToGoogleSheets('delete', order);
+            // Sync with Google Sheets if connected
+            if (this.connectionStatus === 'connected') {
+                this.syncToGoogleSheets('delete');
             }
         }
     }
 
-    // Google Sheets Integration (Fixed version)
+    // Google Sheets Integration (CORS-free methods)
     testConnection() {
         const url = document.getElementById('appsScriptUrl').value.trim();
         if (!url) {
@@ -376,44 +369,25 @@ class OrderManagementApp {
 
         this.updateConnectionStatus('testing');
         
-        // Try direct JSON first, fallback to JSONP
-        this.makeDirectRequest(url, 'test')
+        // Use JSONP to test connection
+        this.makeJsonpRequest(url, { action: 'test' })
             .then(response => {
-                console.log('Direct request successful:', response);
-                this.handleConnectionSuccess(response, url);
-            })
-            .catch(() => {
-                console.log('Direct request failed, trying JSONP...');
-                return this.makeJsonpRequest(url, { action: 'test' });
-            })
-            .then(response => {
-                if (response) {
-                    console.log('JSONP request successful:', response);
-                    this.handleConnectionSuccess(response, url);
+                console.log('Received response:', response);
+                if (response && response.status === 'success') {
+                    this.connectionStatus = 'connected';
+                    this.appsScriptUrl = url;
+                    this.updateConnectionStatus('connected');
+                    this.showMessage('Connection successful!', 'success');
                 } else {
-                    throw new Error('No response received');
+                    throw new Error('Invalid response from server');
                 }
             })
             .catch(error => {
                 console.error('Connection test failed:', error);
                 this.connectionStatus = 'disconnected';
                 this.updateConnectionStatus('disconnected');
-                this.showMessage('Connection failed. Please check your Apps Script URL or use CSV sync instead.', 'error');
+                this.showMessage('Connection failed. Try CSV sync instead.', 'error');
             });
-    }
-
-    handleConnectionSuccess(response, url) {
-        if (response && (response.success || response.status === 'success')) {
-            this.connectionStatus = 'connected';
-            this.appsScriptUrl = url;
-            this.updateConnectionStatus('connected');
-            this.showMessage('Connection successful! You can now sync data with Google Sheets.', 'success');
-            
-            // Load existing data from Google Sheets
-            this.loadFromGoogleSheets();
-        } else {
-            throw new Error('Invalid response format');
-        }
     }
 
     connectJsonp() {
@@ -427,31 +401,6 @@ class OrderManagementApp {
         this.testConnection();
     }
 
-    // Direct request method (for JSON responses)
-    async makeDirectRequest(url, action, data = null) {
-        if (action === 'test' || action === 'read') {
-            // GET request for read operations
-            const response = await fetch(`${url}?action=${action}`);
-            if (!response.ok) throw new Error('Request failed');
-            return await response.json();
-        } else {
-            // POST request for create/update/delete operations
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    action: action,
-                    ...data
-                })
-            });
-            if (!response.ok) throw new Error('Request failed');
-            return await response.json();
-        }
-    }
-
-    // JSONP request method (for CORS bypass)
     makeJsonpRequest(url, params = {}) {
         return new Promise((resolve, reject) => {
             const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
@@ -459,9 +408,7 @@ class OrderManagementApp {
             // Create callback function
             window[callbackName] = function(data) {
                 delete window[callbackName];
-                if (document.body.contains(script)) {
-                    document.body.removeChild(script);
-                }
+                document.body.removeChild(script);
                 resolve(data);
             };
 
@@ -471,14 +418,12 @@ class OrderManagementApp {
                 .map(key => `${key}=${encodeURIComponent(params[key])}`)
                 .join('&');
             
-            script.src = `${url}?${paramString}&callback=${callbackName}`;
+            script.src = `${url}${paramString ? '?' + paramString : ''}${paramString ? '&' : '?'}callback=${callbackName}`;
             
             // Handle errors
             script.onerror = function() {
                 delete window[callbackName];
-                if (document.body.contains(script)) {
-                    document.body.removeChild(script);
-                }
+                document.body.removeChild(script);
                 reject(new Error('JSONP request failed'));
             };
 
@@ -497,121 +442,26 @@ class OrderManagementApp {
         });
     }
 
-    // Load data from Google Sheets
-    async loadFromGoogleSheets() {
-        if (this.connectionStatus !== 'connected') return;
-
-        try {
-            this.showMessage('Loading data from Google Sheets...', 'info');
-            
-            // Try direct request first
-            let response;
-            try {
-                response = await this.makeDirectRequest(this.appsScriptUrl, 'read');
-            } catch (error) {
-                console.log('Direct request failed, trying JSONP...');
-                response = await this.makeJsonpRequest(this.appsScriptUrl, { action: 'read' });
-            }
-
-            if (response && (response.success || response.status === 'success') && response.data) {
-                // Merge Google Sheets data with local data
-                const sheetsOrders = response.data.map(order => ({
-                    ...order,
-                    id: order.id || Date.now() + Math.random() // Ensure unique ID
-                }));
-
-                if (sheetsOrders.length > 0) {
-                    const merge = confirm(
-                        `Found ${sheetsOrders.length} orders in Google Sheets.\n\n` +
-                        'Click OK to replace local data with Google Sheets data, or Cancel to keep local data.'
-                    );
-
-                    if (merge) {
-                        this.orders = sheetsOrders;
-                        this.saveToLocalStorage();
-                        this.updateDashboard();
-                        this.renderOrders();
-                        this.showMessage(`Loaded ${sheetsOrders.length} orders from Google Sheets!`, 'success');
-                    }
-                } else {
-                    this.showMessage('No orders found in Google Sheets', 'info');
-                }
-            }
-        } catch (error) {
-            console.error('Failed to load from Google Sheets:', error);
-            this.showMessage('Failed to load data from Google Sheets', 'warning');
-        }
-    }
-
-    // Sync single order to Google Sheets (fixed method)
-    async syncSingleOrderToGoogleSheets(action, orderData) {
-        if (this.connectionStatus !== 'connected') return;
-
-        try {
-            let response;
-            
-            // Use direct POST request for CUD operations
-            try {
-                response = await this.makeDirectRequest(this.appsScriptUrl, action, orderData);
-            } catch (error) {
-                console.log('Direct request failed for sync, operation saved locally only');
-                this.showMessage('Synced to Google Sheets failed, but saved locally', 'warning');
-                return;
-            }
-
-            if (response && (response.success || response.status === 'success')) {
-                console.log('Successfully synced to Google Sheets:', action, orderData.orderNumber);
-            } else {
-                throw new Error('Sync response indicates failure');
-            }
-        } catch (error) {
-            console.error('Sync failed:', error);
-            this.showMessage('Google Sheets sync failed, but data saved locally', 'warning');
-        }
-    }
-
-    // Bulk sync to Google Sheets
-    async syncAllToGoogleSheets() {
+    syncToGoogleSheets(userAction) {
         if (this.connectionStatus !== 'connected') {
-            this.showMessage('Not connected to Google Sheets', 'error');
             return;
         }
 
-        if (this.orders.length === 0) {
-            this.showMessage('No orders to sync', 'warning');
-            return;
-        }
-
-        this.showMessage('Syncing all orders to Google Sheets...', 'info');
-
-        try {
-            // For bulk sync, we would need to modify the Apps Script
-            // For now, sync orders one by one
-            let successCount = 0;
-            
-            for (const order of this.orders) {
-                try {
-                    await this.syncSingleOrderToGoogleSheets('create', order);
-                    successCount++;
-                } catch (error) {
-                    console.error('Failed to sync order:', order.orderNumber, error);
-                }
-                
-                // Small delay to avoid rate limiting
-                await new Promise(resolve => setTimeout(resolve, 100));
+        this.makeJsonpRequest(this.appsScriptUrl, {
+            action: userAction,
+            data: JSON.stringify(this.orders)
+        }).then(response => {
+            if (response && response.status === 'success') {
+                this.showMessage('Data synced to Google Sheets!', 'success');
             }
-
-            this.showMessage(`Successfully synced ${successCount} of ${this.orders.length} orders to Google Sheets!`, 'success');
-        } catch (error) {
-            console.error('Bulk sync failed:', error);
-            this.showMessage('Bulk sync failed. Try using CSV export/import instead.', 'error');
-        }
+        }).catch(error => {
+            console.error('Sync failed:', error);
+            this.showMessage('Sync failed. Data saved locally.', 'warning');
+        });
     }
 
     updateConnectionStatus(status) {
         const statusElement = document.getElementById('connectionStatus');
-        if (!statusElement) return;
-
         const statusClasses = {
             'connected': 'status--success',
             'testing': 'status--info', 
@@ -619,19 +469,16 @@ class OrderManagementApp {
         };
 
         const statusTexts = {
-            'connected': '✅ Connected',
-            'testing': '⏳ Testing...',
-            'disconnected': '❌ Not Connected'
+            'connected': 'Connected',
+            'testing': 'Testing...',
+            'disconnected': 'Not Connected'
         };
 
         statusElement.innerHTML = `<span class="status ${statusClasses[status]}">${statusTexts[status]}</span>`;
     }
 
     updateSyncStatus() {
-        const localCountElement = document.getElementById('localOrderCount');
-        if (localCountElement) {
-            localCountElement.textContent = this.orders.length;
-        }
+        document.getElementById('localOrderCount').textContent = this.orders.length;
         this.updateConnectionStatus(this.connectionStatus);
     }
 
@@ -747,11 +594,6 @@ class OrderManagementApp {
 
     importFromPaste() {
         const textarea = document.getElementById('pasteDataTextarea');
-        if (!textarea) {
-            this.showMessage('Paste area not found', 'error');
-            return;
-        }
-
         const csvText = textarea.value.trim();
         
         if (!csvText) {
@@ -770,20 +612,14 @@ class OrderManagementApp {
 
     // Settings and data management
     showSettingsModal() {
-        const settingsModal = document.getElementById('settingsModal');
-        if (settingsModal) {
-            settingsModal.classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
-            this.updateSyncStatus();
-        }
+        document.getElementById('settingsModal').classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        this.updateSyncStatus();
     }
 
     hideSettingsModal() {
-        const settingsModal = document.getElementById('settingsModal');
-        if (settingsModal) {
-            settingsModal.classList.add('hidden');
-            document.body.style.overflow = '';
-        }
+        document.getElementById('settingsModal').classList.add('hidden');
+        document.body.style.overflow = '';
     }
 
     clearLocalData() {
@@ -818,11 +654,7 @@ class OrderManagementApp {
     // Utility functions
     formatDate(dateString) {
         if (!dateString) return '-';
-        try {
-            return new Date(dateString).toLocaleDateString();
-        } catch (error) {
-            return dateString;
-        }
+        return new Date(dateString).toLocaleDateString();
     }
 
     getStatusClass(status) {
@@ -895,18 +727,14 @@ class OrderManagementApp {
 
         // Insert at the top of the main content
         const main = document.querySelector('.main .container');
-        if (main) {
-            main.insertBefore(messageDiv, main.firstChild);
+        main.insertBefore(messageDiv, main.firstChild);
 
-            // Auto-remove after 5 seconds
-            setTimeout(() => {
-                if (messageDiv.parentNode) {
-                    messageDiv.remove();
-                }
-            }, 5000);
-        } else {
-            console.log(message);
-        }
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (messageDiv.parentNode) {
+                messageDiv.remove();
+            }
+        }, 5000);
     }
 
     // Local storage operations
@@ -914,7 +742,6 @@ class OrderManagementApp {
         try {
             localStorage.setItem('orderManagementData', JSON.stringify({
                 orders: this.orders,
-                appsScriptUrl: this.appsScriptUrl,
                 lastSaved: new Date().toISOString()
             }));
         } catch (error) {
@@ -929,14 +756,6 @@ class OrderManagementApp {
                 const parsed = JSON.parse(data);
                 if (parsed.orders && Array.isArray(parsed.orders)) {
                     this.orders = parsed.orders;
-                }
-                if (parsed.appsScriptUrl) {
-                    this.appsScriptUrl = parsed.appsScriptUrl;
-                    // Auto-populate the URL field if it exists
-                    const urlInput = document.getElementById('appsScriptUrl');
-                    if (urlInput) {
-                        urlInput.value = this.appsScriptUrl;
-                    }
                 }
             }
         } catch (error) {
