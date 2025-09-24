@@ -311,7 +311,7 @@ class OrderManagementApp {
             contact: document.getElementById('contact').value,
             imageUrls: document.getElementById('imageUrls').value
         };
-
+        let currentOrder;
         if (this.currentEditId) {
             // Update existing order
             const orderIndex = this.orders.findIndex(o => o.id === this.currentEditId);
@@ -323,6 +323,7 @@ class OrderManagementApp {
                 ...orderData
             };
             this.orders.push(newOrder);
+            currentOrder = newOrder;
         }
 
         this.saveToLocalStorage();
@@ -333,7 +334,7 @@ class OrderManagementApp {
 
         // Sync with Google Sheets if connected
         if (this.connectionStatus === 'connected') {
-            this.syncToGoogleSheets('create');
+            this.syncSingleOrderToGoogleSheets(currentOrder);
         }
     }
 
@@ -762,6 +763,37 @@ class OrderManagementApp {
             console.error('Failed to load from localStorage:', error);
         }
     }
+
+    // Sync only the current order to Google Sheets
+    syncSingleOrderToGoogleSheets(orderData) {
+        if (this.connectionStatus !== 'connected') {
+            return;
+        }
+
+        // Send only the single order data (not all orders array)
+        this.makeJsonpRequest(this.appsScriptUrl, {
+            action: 'create',
+            orderNumber: orderData.orderNumber,
+            partyName: orderData.partyName,
+            orderDate: orderData.orderDate,
+            orderStatus: orderData.orderStatus,
+            expectedDelivery: orderData.expectedDelivery,
+            delivered: orderData.delivered,
+            contact: orderData.contact,
+            imageUrls: orderData.imageUrls
+        }).then(response => {
+            console.log('Sync response:', response);
+            if (response && (response.success === true || response.status === 'success')) {
+                this.showMessage(`Order ${orderData.orderNumber} synced to Google Sheets!`, 'success');
+            } else {
+                this.showMessage('Sync failed, but order saved locally', 'warning');
+            }
+        }).catch(error => {
+            console.error('Sync failed:', error);
+            this.showMessage('Sync failed, but order saved locally', 'warning');
+        });
+    }
+
 }
 
 // Initialize the app when DOM is loaded
