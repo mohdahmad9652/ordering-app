@@ -379,6 +379,7 @@ class OrderManagementApp {
                     this.appsScriptUrl = url;
                     this.updateConnectionStatus('connected');
                     this.showMessage('Connection successful!', 'success');
+                    this.performInitialSync();
                 } else {
                     throw new Error('Invalid response from server');
                 }
@@ -793,6 +794,132 @@ class OrderManagementApp {
             this.showMessage('Sync failed, but order saved locally', 'warning');
         });
     }
+
+    // Perform initial sync when connecting for the first time
+    async performInitialSync() {
+        if (this.connectionStatus !== 'connected') {
+            return;
+        }
+
+        try {
+            this.showMessage('Syncing local data to Google Sheets...', 'info');
+            
+            //Not required
+            // Step 1: Upload all local orders to Google Sheets
+            // if (this.orders.length > 0) {
+            //     await this.uploadAllOrdersToGoogleSheets();
+            // }
+            
+            // Step 2: Fetch all data back from Google Sheets to ensure consistency
+            await this.fetchAllOrdersFromGoogleSheets();
+            
+            this.showMessage('Initial sync completed successfully!', 'success');
+            
+        } catch (error) {
+            console.error('Initial sync failed:', error);
+            this.showMessage('Initial sync failed, but connection is working', 'warning');
+        }
+    }
+    // Upload all local orders to Google Sheets
+    async uploadAllOrdersToGoogleSheets() {
+        if (this.orders.length === 0) {
+            return;
+        }
+
+        this.showMessage(`Uploading ${this.orders.length} local orders to Google Sheets...`, 'info');
+        
+        let successCount = 0;
+        let failCount = 0;
+        
+        // Upload orders one by one with small delays
+        for (let i = 0; i < this.orders.length; i++) {
+            const order = this.orders[i];
+            
+            try {
+                const response = await this.makeJsonpRequest(this.appsScriptUrl, {
+                    action: 'create',
+                    orderNumber: order.orderNumber,
+                    partyName: order.partyName,
+                    orderDate: order.orderDate,
+                    orderStatus: order.orderStatus,
+                    expectedDelivery: order.expectedDelivery,
+                    delivered: order.delivered,
+                    contact: order.contact,
+                    imageUrls: order.imageUrls
+                });
+                
+                if (response && (response.success === true || response.status === 'success')) {
+                    successCount++;
+                    console.log(`Uploaded order: ${order.orderNumber}`);
+                } else {
+                    failCount++;
+                }
+                
+            } catch (error) {
+                failCount++;
+                console.error(`Error uploading order: ${order.orderNumber}`, error);
+            }
+            
+            // Small delay to avoid overwhelming the API
+            if (i < this.orders.length - 1) {
+                await this.delay(200); // 200ms delay between requests
+            }
+        }
+        
+        if (failCount > 0) {
+            this.showMessage(`Uploaded ${successCount} orders, ${failCount} failed`, 'warning');
+        } else {
+            this.showMessage(`Successfully uploaded all ${successCount} orders`, 'success');
+        }
+    }
+    // Fetch all orders from Google Sheets and update local data
+    async fetchAllOrdersFromGoogleSheets() {
+        try {
+            this.showMessage('Fetching latest data from Google Sheets...', 'info');
+            
+            const response = await this.makeJsonpRequest(this.appsScriptUrl, { action: 'read' });
+            
+            if (response && (response.success === true || response.status === 'success') && response.data) {
+                // Convert Google Sheets data to app format
+                const sheetsOrders = response.data.map((sheetOrder, index) => ({
+                    id: sheetOrder.id || Date.now() + index, // Ensure unique ID
+                    orderNumber: sheetOrder.orderNumber || '',
+                    partyName: sheetOrder.partyName || '',
+                    orderDate: sheetOrder.orderDate || '',
+                    orderStatus: sheetOrder.orderStatus || 'Pending',
+                    expectedDelivery: sheetOrder.expectedDelivery || '',
+                    delivered: sheetOrder.delivered || 'No',
+                    contact: sheetOrder.contact || '',
+                    imageUrls: sheetOrder.imageUrls || ''
+                }));
+                
+                // Update local data with Google Sheets data
+                this.orders = sheetsOrders;
+                this.saveToLocalStorage();
+                
+                // Update UI
+                this.updateDashboard();
+                this.renderOrders();
+                
+                this.showMessage(`Loaded ${sheetsOrders.length} orders from Google Sheets`, 'success');
+                
+            } else {
+                this.showMessage('No data found in Google Sheets', 'info');
+            }
+            
+        } catch (error) {
+            console.error('Failed to fetch from Google Sheets:', error);
+            this.showMessage('Failed to fetch data from Google Sheets', 'warning');
+        }
+    }
+
+    // Helper method for delays
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+
+
 
 }
 
