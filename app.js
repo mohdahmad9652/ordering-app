@@ -284,7 +284,9 @@ class OrderManagementApp {
     }
 
     populateForm(order) {
-        document.getElementById('orderNumber').value = order.orderNumber;
+        const orderNumberInput = document.getElementById('orderNumber');
+        orderNumberInput.value = order.orderNumber;
+        orderNumberInput.readOnly = true;
         document.getElementById('partyName').value = order.partyName;
         document.getElementById('orderDate').value = order.orderDate;
         document.getElementById('orderStatus').value = order.orderStatus;
@@ -320,6 +322,12 @@ class OrderManagementApp {
             currentOrder = this.orders[orderIndex];
             userAction='update'
         } else {
+            // Prevent duplicate orderNumber
+            const duplicateOrder = this.orders.find(o => o.orderNumber === orderData.orderNumber);
+            if (duplicateOrder) {
+                this.showMessage('Duplicate order number is not allowed.', 'error');
+                return;
+            }
             // Add new order
             const newOrder = {
                 id: Date.now(),
@@ -351,7 +359,7 @@ class OrderManagementApp {
 
     deleteOrder(id) {
         if (confirm('Are you sure you want to delete this order?')) {
-            currentOrder = this.orders.find(o => o.id === id);
+            let currentOrder = this.orders.find(o => o.id === id);
             this.orders = this.orders.filter(o => o.id !== id);
             this.saveToLocalStorage();
             this.updateDashboard();
