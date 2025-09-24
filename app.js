@@ -288,7 +288,7 @@ class OrderManagementApp {
         orderNumberInput.value = order.orderNumber;
         orderNumberInput.readOnly = true;
         document.getElementById('partyName').value = order.partyName;
-        document.getElementById('orderDate').value = order.orderDate;
+        document.getElementById('orderDate').value = order.orderDate[0];
         document.getElementById('orderStatus').value = order.orderStatus;
         document.getElementById('expectedDelivery').value = order.expectedDelivery || '';
         document.getElementById('delivered').value = order.delivered;
