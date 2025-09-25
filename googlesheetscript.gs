@@ -53,6 +53,10 @@ function doGet(e) {
     } catch (error) {
       result = { error: 'Invalid bulk import data: ' + error.toString(), success: false };
     }
+  } else if (action === 'searchOrder') {
+    // NEW: Handle single order search
+    var orderNumber = e.parameter.orderNumber || '';
+    result = searchOrder(orderNumber);
   } else {
     result = {
       error: 'Invalid Get action',
@@ -489,5 +493,79 @@ function testJsonp() {
   } catch (error) {
     console.error('JSONP test failed:', error);
     return 'JSONP test failed: ' + error.toString();
+  }
+}
+function searchOrder(orderNumber) {
+  try {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('orders');
+    
+    if (!sheet) {
+      return { 
+        error: 'orders sheet not found', 
+        success: false 
+      };
+    }
+    
+    if (!orderNumber || orderNumber.trim() === '') {
+      return { 
+        error: 'Order number is required', 
+        success: false 
+      };
+    }
+    
+    var data = sheet.getDataRange().getValues();
+    var orderNumberToSearch = orderNumber.toString().trim().toLowerCase();
+    
+    // Search for the order (case-insensitive)
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
+      
+      // Skip empty rows
+      if (!row[0] || row[0].toString().trim() === '') {
+        continue;
+      }
+      
+      var currentOrderNumber = row[0].toString().trim().toLowerCase();
+      
+      if (currentOrderNumber === orderNumberToSearch) {
+        // Found the order - return it
+        var order = {
+          id: 'order_' + (i + 1),
+          orderNumber: row[0] ? row[0].toString() : '',
+          partyName: row[1] ? row[1].toString() : '',
+          orderDate: row[2] ? row[2].toString() : '',
+          orderStatus: validateOrderStatus(row[3] ? row[3].toString() : 'New'),
+          expectedDelivery: row[4] ? row[4].toString() : '',
+          delivered: validateDeliveredStatus(row[5] ? row[5].toString() : 'No'),
+          contact: row[6] ? row[6].toString() : '',
+          imageUrls: row[7] ? row[7].toString() : ''
+        };
+        
+        return {
+          success: true,
+          found: true,
+          order: order,
+          message: 'Order found successfully',
+          timestamp: new Date().toISOString()
+        };
+      }
+    }
+    
+    // Order not found
+    return {
+      success: true,
+      found: false,
+      order: null,
+      message: 'Order not found',
+      searchedOrderNumber: orderNumber,
+      timestamp: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    return { 
+      error: error.toString(), 
+      success: false,
+      found: false
+    };
   }
 }
