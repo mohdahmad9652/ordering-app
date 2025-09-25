@@ -158,12 +158,40 @@
                                         <div class="sync-option">
                                             <h4>🔄 JSONP Method (Recommended)</h4>
                                             <p>Bypasses CORS using dynamic script injection</p>
-                                            <div class="sync-option__controls">
-                                                <input type="text" class="form-control" id="appsScriptUrl" 
-                                                       placeholder="Enter Google Apps Script Web App URL">
-                                                <button class="btn btn--primary btn--sm" id="connectJsonpBtn">Connect JSONP</button>
+                                            
+                                            <div class="connection-form">
+                                                <div class="form-grid">
+                                                    <!-- Apps Script URL -->
+                                                    <div class="form-field">
+                                                        <label for="appsScriptUrl">Apps Script URL</label>
+                                                        <input type="text" 
+                                                            class="form-control" 
+                                                            id="appsScriptUrl" 
+                                                            placeholder="https://script.google.com/macros/s/your-script-id/exec">
+                                                    </div>
+                                                    
+                                                    <!-- Google Sheet URL -->
+                                                    <div class="form-field">
+                                                        <label for="googleSheetUrl">
+                                                            Sheet URL
+                                                        </label>
+                                                        <input type="text" 
+                                                            class="form-control" 
+                                                            id="googleSheetUrl" 
+                                                            placeholder="https://docs.google.com/spreadsheets/d/your-sheet-id/edit">
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Connect Button -->
+                                                <div class="form-actions">
+                                                    <button class="btn btn--primary" id="connectJsonpBtn">
+                                                        Connect JSONP
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
+
+
 
                                         <div class="sync-option">
                                             <h4>📄 CSV Sync</h4>
@@ -188,9 +216,17 @@
 
                                         <div class="sync-option">
                                             <h4>🔗 Direct Sheet Link</h4>
-                                            <p>Current Sheet ID: <code>105XkCE9Syor01aZZHzP7Z08SEEajGAIKRaAybTQ02IA</code></p>
-                                            <a href="https://docs.google.com/spreadsheets/d/105XkCE9Syor01aZZHzP7Z08SEEajGAIKRaAybTQ02IA/edit" 
-                                               target="_blank" class="btn btn--outline btn--sm">Open Sheet</a>
+                                            <div id="sheetLinkContainer">
+                                                <p id="noSheetMessage" style="color: #666;">
+                                                    Enter Google Sheet URL above or connect to Apps Script to generate link.
+                                                </p>
+                                                <div id="sheetLinkContent" style="display: none;">
+                                                    <p>Current Sheet ID: <code id="currentSheetId">Not set</code></p>
+                                                    <a id="openSheetBtn" href="#" target="_blank" class="btn btn--outline btn--sm">
+                                                        Open Sheet
+                                                    </a>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

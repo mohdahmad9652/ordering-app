@@ -4,6 +4,8 @@ class OrderManagementApp {
         this.currentEditId = null;
         this.connectionStatus = 'disconnected';
         this.appsScriptUrl = '';
+        this.googleSheetUrl = '';
+        this.googleSheetId = '';
         
         // Load sample data and initialize
         this.loadSampleData();
@@ -103,6 +105,9 @@ class OrderManagementApp {
         document.getElementById('exportJsonBtn').addEventListener('click', () => this.exportToJson());
         document.getElementById('backupDataBtn').addEventListener('click', () => this.backupData());
 
+        document.getElementById('googleSheetUrl').addEventListener('input', () => this.updateSheetUrlFromInput());
+
+
         // Form submission
         document.getElementById('orderForm').addEventListener('submit', (e) => {
             e.preventDefault();
@@ -117,6 +122,57 @@ class OrderManagementApp {
             }
         });
     }
+
+    updateSheetUrlFromInput() {
+        const sheetUrlInput = document.getElementById('googleSheetUrl');
+        if (sheetUrlInput) {
+            const fullUrl = sheetUrlInput.value.trim();
+            this.googleSheetUrl = fullUrl;
+            this.googleSheetId = this.extractSheetIdFromUrl(fullUrl);
+            this.saveToLocalStorage();
+            this.updateSheetLink();
+        }
+    }
+
+    extractSheetIdFromUrl(url) {
+        if (!url) return '';
+        const urlPattern = /\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/;
+        const match = url.match(urlPattern);
+        return match ? match[1] : '';
+    }
+
+    updateSheetLink() {
+        const noSheetMessage = document.getElementById('noSheetMessage');
+        const sheetLinkContent = document.getElementById('sheetLinkContent');
+        const currentSheetIdElement = document.getElementById('currentSheetId');
+        const openSheetBtn = document.getElementById('openSheetBtn');
+        
+        if (!noSheetMessage) return;
+        
+        if (this.googleSheetId && this.googleSheetId.length > 0) {
+            noSheetMessage.style.display = 'none';
+            sheetLinkContent.style.display = 'block';
+            
+            currentSheetIdElement.textContent = this.googleSheetId;
+            
+            const sheetsUrl = this.googleSheetUrl || 
+                            `https://docs.google.com/spreadsheets/d/${this.googleSheetId}/edit`;
+            openSheetBtn.href = sheetsUrl;
+            
+            // Update button style based on connection status
+            if (this.connectionStatus === 'connected') {
+                openSheetBtn.textContent = 'Open Connected Sheet';
+                openSheetBtn.className = 'btn btn--primary btn--sm';
+            } else {
+                openSheetBtn.textContent = 'Open Sheet';
+                openSheetBtn.className = 'btn btn--outline btn--sm';
+            }
+        } else {
+            noSheetMessage.style.display = 'block';
+            sheetLinkContent.style.display = 'none';
+        }
+    }
+
 
     // Tab navigation
     showTab(tabName) {
@@ -907,6 +963,9 @@ class OrderManagementApp {
         try {
             localStorage.setItem('orderManagementData', JSON.stringify({
                 orders: this.orders,
+                appsScriptUrl: this.appsScriptUrl,
+                googleSheetUrl: this.googleSheetUrl,
+                googleSheetId: this.googleSheetId,
                 lastSaved: new Date().toISOString()
             }));
         } catch (error) {
@@ -921,6 +980,12 @@ class OrderManagementApp {
                 const parsed = JSON.parse(data);
                 if (parsed.orders && Array.isArray(parsed.orders)) {
                     this.orders = parsed.orders;
+                }
+                if (parsed.googleSheetUrl) { // NEW
+                    this.googleSheetUrl = parsed.googleSheetUrl;
+                    const sheetUrlInput = document.getElementById('googleSheetUrl');
+                    if (sheetUrlInput) sheetUrlInput.value = this.googleSheetUrl;
+                    this.googleSheetId = this.extractSheetIdFromUrl(this.googleSheetUrl);
                 }
             }
         } catch (error) {
