@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Status Tracker</title>
+    <link rel="stylesheet" href="style.css"> <!-- Or paste status-tracker styles inline -->
+</head>
+<body>
+    <div class="status-tracker-section">
+        <div class="card">
+            <div class="card__header">
+                <h2>🔍 Order Status Tracker</h2>
+                <p>Enter your order number to check the current status</p>
+            </div>
+            <div class="card__body">
+                <div class="status-search">
+                    <div class="search-form">
+                        <div class="input-group">
+                            <input type="text" class="form-control search-input" id="orderStatusSearch" placeholder="Enter Order Number (e.g., ORD001)" autocomplete="off">
+                            <button class="btn btn--primary search-btn" id="checkStatusBtn">Check Status</button>
+                        </div>
+                        <small class="input-help">Enter your order number provided to you when your order was placed.</small>
+                    </div>
+                </div>
+                <div class="status-results" id="statusResults" style="display: none;">
+                    <div class="order-card">
+                        <div class="order-header">
+                            <h3 id="orderNumber">Order #ORD001</h3>
+                            <span class="status-badge" id="statusBadge"><span class="status status--info">Loading...</span></span>
+                        </div>
+                        <div class="order-details">
+                            <div class="detail-row"><span class="detail-label">Party Name:</span><span class="detail-value" id="partyName">-</span></div>
+                            <div class="detail-row"><span class="detail-label">Order Date:</span><span class="detail-value" id="orderDate">-</span></div>
+                            <div class="detail-row"><span class="detail-label">Expected Delivery:</span><span class="detail-value" id="expectedDelivery">-</span></div>
+                            <div class="detail-row"><span class="detail-label">Contact:</span><span class="detail-value" id="contactInfo">-</span></div>
+                            <div class="detail-row"><span class="detail-label">Delivered:</span><span class="detail-value" id="deliveryStatus">-</span></div>
+                        </div>
+                        <div class="progress-timeline">
+                            <h4>Order Progress:</h4>
+                            <div class="timeline">
+                                <div class="timeline-step" data-status="New"><div class="step-circle">1</div><div class="step-label">New</div></div>
+                                <div class="timeline-step" data-status="Cad Done"><div class="step-circle">2</div><div class="step-label">CAD Done</div></div>
+                                <div class="timeline-step" data-status="RPT DONE"><div class="step-circle">3</div><div class="step-label">RPT Done</div></div>
+                                <div class="timeline-step" data-status="Casting Procces"><div class="step-circle">4</div><div class="step-label">Casting</div></div>
+                                <div class="timeline-step" data-status="Ready For Delivery"><div class="step-circle">5</div><div class="step-label">Ready</div></div>
+                                <div class="timeline-step" data-status="Delivered"><div class="step-circle">6</div><div class="step-label">Delivered</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="no-results" id="noResults" style="display: none;">
+                    <div class="empty-state">
+                        <h3>❌ Order Not Found</h3>
+                        <p>We couldn't find an order with that number.</p>
+                        <small>Please check the order number and try again, or contact us for assistance.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="status-app.js"></script>
+</body>
+</html>
