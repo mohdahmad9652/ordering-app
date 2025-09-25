@@ -30,7 +30,7 @@ A modern, responsive web application for managing jewelry orders with seamless G
 
 ## 🚀 Live Demo
 
-**🌐 [Try the Live App](https://mohdahmad9652.github.io/ordering-app/)**
+**🌐 [Try the Live App](https://mohdahmadatwork.github.io/ordering-app/)**
 
 No installation required! Use the deployed version directly with your own Google Sheet.
 
@@ -61,7 +61,7 @@ No installation required! Use the deployed version directly with your own Google
    - **Copy the Web App URL** (you'll need this)
 
 4. **🔗 Connect to Live App:**
-   - Go to **[https://mohdahmad9652.github.io/ordering-app/](https://mohdahmad9652.github.io/ordering-app/)**
+   - Go to **[https://github.com/mohdahmadatwork/ordering-app/](https://github.com/mohdahmadatwork/ordering-app/)**
    - Navigate to the `Google Sheets` tab
    - Paste your **Apps Script URL** in the first field
    - Paste your **Google Sheet URL** in the second field (optional)
@@ -72,7 +72,7 @@ No installation required! Use the deployed version directly with your own Google
 
 1. **📂 Clone the Repository:**
    ```bash
-   git clone https://github.com/mohdahmad9652/ordering-app.git
+   git clone https://github.com/mohdahmadatwork/ordering-app.git
    cd ordering-app
    ```
 
@@ -274,10 +274,10 @@ Multiple ways to sync data:
 
 ## 🔗 Links
 
-- **🌐 Live Demo**: [https://mohdahmad9652.github.io/ordering-app/](https://mohdahmad9652.github.io/ordering-app/)
-- **📚 Repository**: [https://github.com/mohdahmad9652/ordering-app](https://github.com/mohdahmad9652/ordering-app)
+- **🌐 Live Demo**: [https://mohdahmadatwork.github.io/ordering-app/](https://mohdahmadatwork.github.io/ordering-app/)
+- **📚 Repository**: [https://github.com/mohdahmadatwork/ordering-app/](https://github.com/mohdahmadatwork/ordering-app/)
 - **📜 Google Apps Script**: [`googlesheetscript.gs`](./googlesheetscript.gs)
 
 ---
 
-**🚀 Ready to streamline your order management? Start with the [live demo](https://mohdahmad9652.github.io/ordering-app/) now!**
+**🚀 Ready to streamline your order management? Start with the [live demo](https://github.com/mohdahmadatwork/ordering-app/) now!**
