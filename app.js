@@ -515,7 +515,7 @@ class OrderManagementApp {
             Array.isArray(order.orderDate) ? order.orderDate[0] : order.orderDate,
             this.escapeCsv(order.orderStatus),
             Array.isArray(order.expectedDelivery) ? (order.expectedDelivery[0] || '') : (order.expectedDelivery || ''),
-            order.delivered,
+            (order.delivered === 'Yes' || order.delivered === 'No') ? order.delivered : 'No',
             this.escapeCsv(order.contact || ''),
             this.escapeCsv(order.imageUrls || '')
             ].join(','))
@@ -821,11 +821,14 @@ class OrderManagementApp {
 
     getStatusClass(status) {
         const statusMap = {
-            'Pending': 'warning',
-            'Processing': 'info',
-            'Delivered': 'success',
-            'Cancelled': 'error',
-            'On Hold': 'warning'
+            'New': 'info',                    // Blue - Just received
+            'Cad Done': 'warning',            // Orange - Design done
+            'RPT DONE': 'warning',            // Orange - Report done  
+            'Casting Procces': 'info',        // Blue - In production
+            'Ready For Delivery': 'success',  // Green - Ready to ship
+            'Delivered': 'success',           // Green - Complete
+            'On HOLD': 'warning',             // Orange - Paused
+            'Cancelled': 'error'              // Red - Cancelled
         };
         return statusMap[status] || 'info';
     }
